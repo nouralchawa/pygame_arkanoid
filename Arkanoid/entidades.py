@@ -1,53 +1,39 @@
 import pygame as pg
-from Arkanoid import GAME_DIMENSIONS, FPS
+from Arkanoid import GAME_DIMENSIONS, FPS, DIMENSIONES_LADRILLO
 
 import random
 import sys
 
 pg.init()
 
-class Ladrillo:
-    w=64
-    h=32
+class Ladrillo(pg.sprite.Sprite):
+
     def __init__(self, x, y):
-        self.x = x
-        self.y = y
+        pg.sprite.Sprite.__init__(self)
 
-        self.imagen = pg.Surface ((self.w, self.h))
-        self.imagen.fill((255,255,255))
-        
-
-
-    @property
-    def rect(self):
-        return self.imagen.get_rect(topleft=(self.x, self.y))
-
-    def actualizar(self):
-        pass
-
-    def comprobar_colision(self, algo):
-        pass
+        self.imagen = pg.Surface (DIMENSIONES_LADRILLO)
+        self.rect = self.imagen.get_rect(x=x, y=y)
+        self.imagen.fill((0,0,0))
+        pg.draw.rect(self.imagen, (205,237,253), ((2,2), (self.rect.w-4, self.rect.h-4)))
 
 
-class Raqueta:
+
+
+class Raqueta(pg.sprite.Sprite):
     def __init__(self, x, y, vx):
-        self.x = x
-        self.y = y
+        pg.sprite.Sprite.__init__(self)
         self.vx =vx
 
         self.imagen = pg.image.load("resources/images/regular_racket.png")
+        self.rect = self.imagen.get_rect(x=x, y=y)
         
 
-    def actualizar(self):
-        self.x += self.vx
-        if self.x + 128 >= GAME_DIMENSIONS[0]:
-            self.x = GAME_DIMENSIONS[0] - 128
-        if self.x <= 0:
-            self.x = 0
-
-    @property
-    def rect(self):
-        return self.imagen.get_rect(topleft=(self.x, self.y))
+    def update(self, dt):
+        self.rect.x += self.vx
+        if self.rect.x + 128 >= GAME_DIMENSIONS[0]:
+            self.rect.x = GAME_DIMENSIONS[0] - 128
+        if self.rect.x <= 0:
+            self.rect.x = 0
 
     def manejar_eventos(self):
         '''
@@ -74,14 +60,14 @@ class Raqueta:
 
 
 
-class Pelota():
+class Pelota(pg.sprite.Sprite):
     imagenes_files = ['brown_ball.png', 'blue_ball.png', 'red_ball.png', 'green_ball.png']
     num_imgs_explosion = 8
     retardo_animaciones = 5
 
     def __init__(self, x, y, vx, vy):
-        self.x = x
-        self.y = y
+        pg.sprite.Sprite.__init__(self)
+        
         self.vx = vx
         self.vy = vy
         self.imagenes = self.cargaImagenes()
@@ -94,6 +80,7 @@ class Pelota():
         self.ticks_por_frame_de_animacion = 1000//FPS*self.retardo_animaciones
         self.muriendo = False
         self.imagen = self.imagenes[self.imagen_act]
+        self.rect = self.imagen.get_rect(x=x, y=y)
 
     def cargaExplosion(self):
         
@@ -110,10 +97,6 @@ class Pelota():
         for img in self.imagenes_files:
             lista_imagenes.append(pg.image.load(f"resources/images/{img}"))
         return lista_imagenes
-
-    @property
-    def rect(self):
-        return self.imagen.get_rect(topleft=(self.x, self.y))
 
     def actualizar_posicion(self):
         if self.muriendo:
@@ -135,8 +118,8 @@ class Pelota():
             return
             
             
-        self.x += self.vx
-        self.y += self.vy
+        self.rect.x += self.vx
+        self.rect.y += self.vy
 
     def actualizar_disfraz(self):
         '''
@@ -152,13 +135,13 @@ class Pelota():
         self.imagen = self.imagenes[self.imagen_act]
         
 
-    def actualizar(self, dt):
+    def update(self, dt):
         self.actualizar_posicion()
 
         if self.muriendo:
             return self.explosion(dt)
         else:
-            self.actualizar_disfraz
+            self.actualizar_disfraz()
 
         
     def explosion(self, dt):
@@ -176,11 +159,10 @@ class Pelota():
         return False
 
     def comprobar_colision(self, algo):
-        if (self.rect.left >= algo.rect.left and self.rect.left <= algo.rect.right or \
-        self.rect.right >= algo.rect.left and self.rect.right <= algo.rect.right) and \
-        self.rect.bottom >= algo.rect.top:
-
-           self.vy *= -1
+        if self.rect.colliderect(algo.rect):
+            self.vy *= -1
+            return True
+            
 
 
 class Game:
@@ -188,23 +170,30 @@ class Game:
         self.pantalla = pg.display.set_mode(GAME_DIMENSIONS)
         pg.display.set_caption("Futuro Arkanoid")
 
-        self.pelota = Pelota(400, 300, 5, 5)
+        self.pelota = Pelota(400, 300, random.randint(2,5)*random.choice([1,-1]), random.randint(2,5)*random.choice([1,-1]))
         self.raqueta = Raqueta(336, 550, 0)
 
-        self.El_ladrillo = (400, 300)
-        self.El_ladrillo = None
-        self.ladrillos = []
+        self.jugadores = pg.sprite.Group(self.raqueta)
+        self.ladrillos = self.crea_ladrillos()
+        self.pelotas = pg.sprite.Group(self.pelota)
+        self.todos = pg.sprite.Group(self.ladrillos, self.jugadores, self.pelotas)
+        
+        
+        self.clock = pg.time.Clock()
+
+    def crea_ladrillos(self):
+        ladrillos = pg.sprite.Group()
         xo = 16
         yo = 16
         for c in range(12):
             for f in range(5):
-                l = Ladrillo(xo + c * Ladrillo.w, yo + f * Ladrillo.h)
-                self.ladrillos.append(l)
-        
-        self.clock = pg.time.Clock()
+                l = Ladrillo(xo + c * DIMENSIONES_LADRILLO[0], yo + f * DIMENSIONES_LADRILLO[1])
+                ladrillos.add(l)
+        return ladrillos
 
     def bucle_principal(self):
         game_over = False
+        ladrillos_rotos = 0
         while not game_over:
             dt = self.clock.tick(FPS)
             '''
@@ -221,16 +210,26 @@ class Game:
             '''
             Actualizacion de elementos del juego
             '''
-            game_over = self.pelota.actualizar(dt)
-            self.raqueta.actualizar()
-            self.pelota.comprobar_colision(self.raqueta)
+            
+            self.todos.update(dt)
 
-            self.pantalla.fill((150,10,150))
-            self.pantalla.blit(self.pelota.imagen, (self.pelota.x, self.pelota.y))
-            self.pantalla.blit(self.raqueta.imagen, (self.raqueta.x, self.raqueta.y))
+            self.pelota.comprobar_colision(self.raqueta)
+            for ladrillo in self.ladrillos:
+                if self.pelota.comprobar_colision(ladrillo):
+                    self.ladrillos.remove(ladrillo)
+                    ladrillos_rotos += 1
+            
+
+            self.pantalla.fill((222,197,227))
+            
+            self.pantalla.blit(self.pelota.imagen, (self.pelota.rect.x, self.pelota.rect.y))
+            self.pantalla.blit(self.raqueta.imagen, (self.raqueta.rect.x, self.raqueta.rect.y))
             
             for ladrillo in self.ladrillos:
-                self.pantalla.blit(ladrillo.imagen, (ladrillo.x, ladrillo.y))
+                self.pantalla.blit(ladrillo.imagen, (ladrillo.rect.x, ladrillo.rect.y))
+
+            if len(self.ladrillos) == 0:
+                self.pantalla.fill(255, 255, 255)
             
             '''
             Refrescar pantalla
